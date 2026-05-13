@@ -1,0 +1,83 @@
+{
+  "$comment": "Canonical conformance scenarios for Prerender integrations. See ../CONTRACT.md.",
+  "constants": {
+    "botUserAgent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "browserUserAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    "token": "test-token-abc123",
+    "host": "example.com",
+    "scheme": "https"
+  },
+  "scenarios": [
+    {
+      "id": "browser-passes-through",
+      "description": "Browser UA on a normal GET should not trigger prerender.",
+      "incoming": { "method": "GET", "path": "/", "headers": { "user-agent": "${browserUserAgent}" } },
+      "shouldPrerender": false
+    },
+    {
+      "id": "bot-triggers-prerender",
+      "description": "Bot UA on a normal GET triggers a request to the mock with required headers.",
+      "incoming": { "method": "GET", "path": "/", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": true,
+      "expectedOutgoing": {
+        "method": "GET",
+        "url": "/${scheme}://${host}/",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-token": "${token}",
+          "x-prerender-int-type": "*"
+        }
+      }
+    },
+    {
+      "id": "bot-on-static-asset-passes-through",
+      "description": "Bot UA on a static asset path does NOT trigger prerender.",
+      "incoming": { "method": "GET", "path": "/styles.css", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": false
+    },
+    {
+      "id": "escaped-fragment-triggers-prerender",
+      "description": "_escaped_fragment_ query param triggers prerender for any user agent.",
+      "incoming": { "method": "GET", "path": "/?_escaped_fragment_=", "headers": { "user-agent": "${browserUserAgent}" } },
+      "shouldPrerender": true,
+      "expectedOutgoing": {
+        "method": "GET",
+        "url": "/${scheme}://${host}/?_escaped_fragment_=",
+        "headers": { "x-prerender-token": "${token}" }
+      }
+    },
+    {
+      "id": "x-bufferbot-triggers-prerender",
+      "description": "X-Bufferbot header triggers prerender for any user agent.",
+      "incoming": { "method": "GET", "path": "/", "headers": { "user-agent": "${browserUserAgent}", "x-bufferbot": "true" } },
+      "shouldPrerender": true
+    },
+    {
+      "id": "post-passes-through",
+      "description": "POST requests are never prerendered, even from bots.",
+      "incoming": { "method": "POST", "path": "/", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": false
+    },
+    {
+      "id": "query-string-preserved",
+      "description": "Query string is preserved verbatim in the outgoing URL.",
+      "incoming": { "method": "GET", "path": "/blog/post-1?ref=twitter&utm=email", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": true,
+      "expectedOutgoing": {
+        "method": "GET",
+        "url": "/${scheme}://${host}/blog/post-1?ref=twitter&utm=email"
+      }
+    },
+    {
+      "id": "token-omitted-when-unconfigured",
+      "description": "When no token is configured, X-Prerender-Token header MUST NOT be sent (not even empty).",
+      "config": { "token": null },
+      "incoming": { "method": "GET", "path": "/", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": true,
+      "expectedOutgoing": {
+        "method": "GET",
+        "headersAbsent": ["x-prerender-token"]
+      }
+    }
+  ]
+}
