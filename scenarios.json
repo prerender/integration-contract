@@ -25,7 +25,9 @@
         "headers": {
           "user-agent": "${botUserAgent}",
           "x-prerender-token": "${token}",
-          "x-prerender-int-type": "*"
+          "x-prerender-int-type": "*",
+          "x-prerender-int-version": "*",
+          "x-prerender-request-id": "uuid-v4"
         }
       }
     },
@@ -78,6 +80,13 @@
         "method": "GET",
         "headersAbsent": ["x-prerender-token"]
       }
+    },
+    {
+      "id": "request-id-is-unique-per-request",
+      "description": "Two successive bot requests must produce two different X-Prerender-Request-Id values.",
+      "incoming": { "method": "GET", "path": "/", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": true,
+      "invariant": "x-prerender-request-id values across N replays of this scenario are pairwise distinct"
     }
   ]
 }
