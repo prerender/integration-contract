@@ -1,0 +1,138 @@
+{
+  "$comment": "Provider-side conformance scenarios for the Prerender service. See ../CONTRACT.md §6.",
+  "constants": {
+    "botUserAgent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "validToken": "valid-test-token",
+    "invalidToken": "definitely-not-a-real-token-aaaaaaaaaaaaa",
+    "embeddedUrl": "https://example.com/blog/post-1",
+    "requestId": "11111111-2222-4333-8444-555555555555",
+    "intType": "Koa",
+    "intVersion": "1.0.0"
+  },
+  "scenarios": [
+    {
+      "id": "happy-path",
+      "description": "Valid token, valid URL, renders successfully.",
+      "request": {
+        "method": "GET",
+        "path": "/${embeddedUrl}",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-token": "${validToken}",
+          "x-prerender-int-type": "${intType}",
+          "x-prerender-int-version": "${intVersion}",
+          "x-prerender-request-id": "${requestId}"
+        }
+      },
+      "expectedResponse": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html;charset=UTF-8",
+          "x-prerender-requestid": "${requestId}"
+        },
+        "headersPresent": ["x-prerender-user-id"]
+      }
+    },
+    {
+      "id": "missing-token",
+      "description": "X-Prerender-Token header is missing entirely.",
+      "request": {
+        "method": "GET",
+        "path": "/${embeddedUrl}",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-int-type": "${intType}",
+          "x-prerender-int-version": "${intVersion}",
+          "x-prerender-request-id": "${requestId}"
+        }
+      },
+      "expectedResponse": {
+        "status": 403,
+        "headers": {
+          "x-prerender-reject-reason": "no-x-prerender-token-provided"
+        }
+      }
+    },
+    {
+      "id": "invalid-token",
+      "description": "Token is sent but doesn't match any known user.",
+      "request": {
+        "method": "GET",
+        "path": "/${embeddedUrl}",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-token": "${invalidToken}",
+          "x-prerender-int-type": "${intType}",
+          "x-prerender-int-version": "${intVersion}",
+          "x-prerender-request-id": "${requestId}"
+        }
+      },
+      "expectedResponse": {
+        "status": 401,
+        "headers": {
+          "x-prerender-reject-reason": "invalid-x-prerender-token-provided"
+        }
+      }
+    },
+    {
+      "id": "malformed-embedded-url",
+      "description": "The path after the service prefix isn't a valid URL.",
+      "request": {
+        "method": "GET",
+        "path": "/not-a-url",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-token": "${validToken}",
+          "x-prerender-int-type": "${intType}",
+          "x-prerender-int-version": "${intVersion}",
+          "x-prerender-request-id": "${requestId}"
+        }
+      },
+      "expectedResponse": {
+        "status": 404,
+        "headers": {
+          "x-prerender-reject-reason": "url-invalid"
+        }
+      }
+    },
+    {
+      "id": "request-id-echoed-on-success",
+      "description": "The service echoes the X-Prerender-Request-Id back as X-Prerender-RequestId on the response.",
+      "request": {
+        "method": "GET",
+        "path": "/${embeddedUrl}",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-token": "${validToken}",
+          "x-prerender-int-type": "${intType}",
+          "x-prerender-int-version": "${intVersion}",
+          "x-prerender-request-id": "${requestId}"
+        }
+      },
+      "expectedResponse": {
+        "status": 200,
+        "headers": {
+          "x-prerender-requestid": "${requestId}"
+        }
+      }
+    },
+    {
+      "id": "request-id-generated-when-absent",
+      "description": "When the integration doesn't send X-Prerender-Request-Id, the service generates one.",
+      "request": {
+        "method": "GET",
+        "path": "/${embeddedUrl}",
+        "headers": {
+          "user-agent": "${botUserAgent}",
+          "x-prerender-token": "${validToken}",
+          "x-prerender-int-type": "${intType}",
+          "x-prerender-int-version": "${intVersion}"
+        }
+      },
+      "expectedResponse": {
+        "status": 200,
+        "headersPresent": ["x-prerender-requestid"]
+      }
+    }
+  ]
+}

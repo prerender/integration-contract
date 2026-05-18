@@ -132,7 +132,44 @@ New integrations: pick a PascalCase identifier that names the **framework**, not
 
 ## 6. Response handling
 
-The integration MUST:
+This section is **bidirectional**: it specifies what the Prerender service returns AND what the integration must do with it.
+
+### 6.1 What the service returns
+
+#### Happy path (200)
+
+| Aspect | Value |
+|---|---|
+| Status | `200` |
+| Body | The rendered HTML, verbatim. No wrapper. |
+| `Content-Type` | `text/html; charset=UTF-8` |
+| `X-Prerender-RequestId` | Echo of the integration's `X-Prerender-Request-Id`, if present, else a server-generated UUID. *Note casing inconsistency: integration sends `Request-Id`, service responds with `RequestId`. Both forms refer to the same value.* |
+| `X-Prerender-User-Id` | Hashed user identifier, for support correlation. |
+
+#### Error responses
+
+All error responses have **empty bodies** unless noted. The `X-Prerender-Reject-Reason` header carries a machine-readable reason code:
+
+| Status | When | `X-Prerender-Reject-Reason` |
+|---|---|---|
+| `401` | `X-Prerender-Token` was sent but doesn't match a known user | `invalid-x-prerender-token-provided` |
+| `403` | `X-Prerender-Token` header is missing entirely | `no-x-prerender-token-provided` |
+| `404` | The embedded URL after the service prefix is malformed and can't be parsed | `url-invalid` |
+| `429` | The customer's plan is in scheduled cancellation | `rate-limit-scheduled-cancellation` |
+| `429` | The customer's trial limit has been reached | `trial-limit-reached` |
+| `429` | Generic rate limiting (request floor) | (none — JSON body from express-rate-limit) |
+| `502` | Downstream renderer connection error | `connection-error` |
+| `503` | The user's account is cancelled and recaching is disabled | `invalid-x-prerender-token-provided` |
+| `504` | The embedded URL matches the customer's ignored-domains list | `ignored-domain` |
+| `504` | Downstream renderer error (timeout/crash) | `rendering-error` |
+
+> **Notes on legacy inconsistencies (preserved for backwards compatibility):**
+>
+> - `401` vs `403` are reversed relative to the usual HTTP convention: missing-credential returns `403`, invalid-credential returns `401`. New integrations should treat *both* as "auth failed" and avoid branching on the exact code.
+> - The reject-reason `invalid-x-prerender-token-provided` is reused for both invalid-token (`401`) and cancelled-user-recaching-disabled (`503`). Branch on the status code, not the reason.
+> - Behaviour for non-GET methods (POST, PUT, etc.) is currently **undefined**. Integrations MUST only send `GET` (per §4.1); they MUST NOT rely on any specific response for non-GET requests.
+
+### 6.2 What the integration MUST do
 
 - Forward the response **status code** verbatim to the original client.
 - Forward the response **body** verbatim.
@@ -141,26 +178,32 @@ The integration MUST:
   - `Content-Length`
   - `Transfer-Encoding`
   - `Connection`
+- The integration SHOULD forward `X-Prerender-Reject-Reason` to the original client when present — it's useful for debugging customer integrations and has no security implication.
+- The integration MUST NOT follow redirects from the Prerender service automatically (already stated in §4.6).
 
-### 6.1 Error handling
+### 6.3 Integration behavior on network errors
 
-If the request to the Prerender service fails with a network/connection error, the integration MUST fall back to the underlying application (i.e., behave as if `shouldPrerender` had returned `false`). It MUST NOT propagate the error to the original client.
+If the request to the Prerender service fails with a network/connection error (DNS failure, connection refused, timeout, TLS error), the integration MUST fall back to the underlying application (i.e., behave as if `shouldPrerender` had returned `false`). It MUST NOT propagate the network error to the original client.
 
-If the Prerender service returns a non-2xx, non-3xx status, the integration SHOULD forward it as-is (default). Implementations MAY expose a `softHttpCodes` opt-in that converts 4xx/5xx into either a passthrough or a custom error page.
+If the Prerender service returns a non-2xx, non-3xx status, the integration SHOULD forward it as-is by default. Implementations MAY expose a `softHttpCodes` opt-in that converts 4xx/5xx into either a passthrough or a custom error page.
 
 ## 7. Conformance scenarios
 
-See [`scenarios.json`](./scenarios.json) for the canonical scenario manifest. Each scenario defines:
+Two scenario manifests, one per direction:
 
-- An incoming request to the integration (method, path, query, headers).
-- Whether the integration should prerender.
-- If prerendering: the expected outgoing request to the mock (URL, headers).
+- [`scenarios.json`](./scenarios.json) — **consumer scenarios** for integration libraries. Each scenario describes an incoming request to the integration and the expected outgoing request to the Prerender service.
+- [`provider-scenarios.json`](./provider-scenarios.json) — **provider scenarios** for the Prerender service itself. Each scenario describes an incoming request as it would arrive from an integration and the expected response per §6.1.
 
-To verify your integration:
+### Verifying an integration (consumer)
 
 1. Spawn the mock: `node mock-server.mjs` (defaults to `:9090`).
 2. Configure your integration with `serviceUrl: http://localhost:9090/` and `token: test-token`.
-3. For each scenario, hit your integration with the input request, then `GET http://localhost:9090/__requests` and assert the recorded outgoing request matches the expected shape.
+3. For each scenario in `scenarios.json`, hit your integration with the input request, then `GET http://localhost:9090/__requests` and assert the recorded outgoing request matches the expected shape.
 4. Reset between scenarios with `POST http://localhost:9090/__reset`.
+
+### Verifying the service (provider)
+
+1. Boot the Prerender service in test mode (with the rendering backend and DB mocked or stubbed).
+2. For each scenario in `provider-scenarios.json`, replay the described request against the service and assert the response status and headers match `expectedResponse`.
 
 See [`README.md`](./README.md) for a full example.
