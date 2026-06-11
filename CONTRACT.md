@@ -57,7 +57,10 @@ Match is **case-insensitive suffix** on `request.path` (not the full URL — exc
 .js .css .xml .less .png .jpg .jpeg .gif .pdf .doc .txt .ico .rss .zip
 .mp3 .rar .exe .wmv .avi .ppt .mpg .mpeg .tif .wav .mov .psd .ai .xls
 .mp4 .m4a .swf .dat .dmg .iso .flv .m4v .torrent .ttf .woff .svg
+.woff2 .otf .eot .webp .avif .webmanifest
 ```
+
+This list is the canonical source. Matching is **suffix-based**, so `.woff` does **not** cover `.woff2` — each extension must be listed explicitly. New entries are added here first and propagated to integrations in a coordinated bump.
 
 ## 4. Outgoing request to Prerender
 

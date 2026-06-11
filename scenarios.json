@@ -38,6 +38,18 @@
       "shouldPrerender": false
     },
     {
+      "id": "bot-on-font-asset-passes-through",
+      "description": "Bot UA on a .woff2 font asset path does NOT trigger prerender.",
+      "incoming": { "method": "GET", "path": "/fonts/inter.woff2", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": false
+    },
+    {
+      "id": "bot-on-uppercase-static-asset-passes-through",
+      "description": "Extension matching is case-insensitive: bot UA on an uppercase static asset path does NOT trigger prerender.",
+      "incoming": { "method": "GET", "path": "/STYLES.CSS", "headers": { "user-agent": "${botUserAgent}" } },
+      "shouldPrerender": false
+    },
+    {
       "id": "escaped-fragment-triggers-prerender",
       "description": "_escaped_fragment_ query param triggers prerender for any user agent.",
       "incoming": { "method": "GET", "path": "/?_escaped_fragment_=", "headers": { "user-agent": "${browserUserAgent}" } },
